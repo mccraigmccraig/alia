@@ -8,10 +8,12 @@
    [lamina.core :as l]
    [clojure.core.memoize :as memo]
    [clojure.core.async :as async]
+   [clojure.core.typed :as T]
    [qbits.alia.cluster-options :as copt])
   (:import
    (com.datastax.driver.core
     BoundStatement
+    CloseFuture
     Cluster
     Cluster$Builder
     PreparedStatement
@@ -24,17 +26,39 @@
    (com.google.common.util.concurrent
     Futures
     FutureCallback)
-   (java.nio ByteBuffer)))
+   (java.nio ByteBuffer)
+   (java.util.concurrent ExecutorService)
+   (lamina.core.result ResultChannel)
+   (clojure.core.async.impl.channels ManyToManyChannel)
+   (clojure.lang
+    Keyword
+    IPersistentMap
+    Sequential)))
 
-(def ^:no-doc default-executor (delay (knit/executor :cached)))
+(T/def-alias Rows Sequential)
+(T/def-alias HaytQuery (IPersistentMap Any Any))
+(T/def-alias ClusterOptions (IPersistentMap Keyword Any))
+(T/def-alias ExecuteOptions (IPersistentMap Keyword Any))
+(T/def-alias Query (U String HaytQuery Statement PreparedStatement BoundStatement))
+
+;; (binding [*err* *out*] (T/cf (cluster 1)))
+
+(T/ann ^:no-check default-executor (T/BlockingDeref ExecutorService))
+(def default-executor (delay (knit/executor :cached)))
+
+(T/ann ^:no-check hayt-query-fn [HaytQuery -> java.lang.String])
 (def ^:no-doc hayt-query-fn (memo/lu hayt/->raw :lu/threshold 100))
 
-(def set-hayt-query-fn!
+(T/ann ^:no-check set-hayt-query-fn! [clojure.lang.IFn -> nil])
+(defn set-hayt-query-fn!
   "Sets root value of hayt-query-fn, allowing to control how hayt
     queries are executed , defaults to LU with a threshold of 100,
     this is a global var, changing it will impact all threads"
-  (utils/var-root-setter hayt-query-fn))
+  [f]
+  (alter-var-root #'hayt-query-fn (constantly f)))
 
+(T/ann ^:no-check cluster (Fn [ClusterOptions -> Cluster]
+                              [-> Cluster]))
 (defn cluster
   "Takes an option map and returns a new
 com.datastax.driver.core/Cluster instance.
@@ -144,6 +168,8 @@ Values for consistency:
          .build))
   ([] (cluster {})))
 
+(T/ann ^:no-check connect (Fn [Cluster String -> Session]
+                              [Cluster -> Session]))
 (defn ^Session connect
   "Returns a new com.datastax.driver.core/Session instance. We need to
 have this separate in order to allow users to connect to multiple
@@ -153,11 +179,17 @@ keyspaces from a single cluster instance"
   ([^Cluster cluster]
      (.connect cluster)))
 
+(T/ann ^:no-check shutdown [(U Session Cluster) -> CloseFuture])
 (defn shutdown
   "Shutdowns Session or Cluster instance, clearing the underlying
 pools/connections"
   [x]
   (.closeAsync x))
+
+
+(T/ann ^:no-check ex->ex-info
+       (Fn [Exception (IPersistentMap Any Any) String -> T/ExInfo]
+           [Exception (IPersistentMap Any Any) -> T/ExInfo]))
 
 (defn ^:private ex->ex-info
   ([^Exception ex data msg]
@@ -169,6 +201,7 @@ pools/connections"
   ([ex data]
      (ex->ex-info ex data "Query execution failed")))
 
+(T/ann ^:no-check prepare [Session (U String IPersistentMap) -> PreparedStatement])
 (defn prepare
   "Takes a session and a query (raw string or hayt) and returns a
   com.datastax.driver.core.PreparedStatement instance to be used in
@@ -187,6 +220,7 @@ pools/connections"
                              :query q}
                             "Query prepare failed"))))))
 
+(T/ann ^:no-check bind [PreparedStatement Any -> BoundStatement])
 (defn bind
   "Takes a statement and a collection of values and returns a
   com.datastax.driver.core.BoundStatement instance to be used with
@@ -200,26 +234,32 @@ pools/connections"
                               :values values}
                           "Query binding failed")))))
 
-(defprotocol ^:no-doc PStatement
-  (^:no-doc query->statement
-    [q values] "Encodes input into a Statement instance"))
+(T/ann-protocol PStatement
+       query->statement
+       [Query (T/Nilable Sequential) -> Any])
+
+(T/defprotocol> ^:no-doc PStatement
+  (query->statement
+   [q values] "Encodes input into a Statement instance"))
 
 (extend-protocol PStatement
   Statement
-  (query->statement [q _] q)
+  (^:no-check query->statement [q _] q)
 
   PreparedStatement
-  (query->statement [q values]
+  (^:no-check query->statement [q values]
     (bind q values))
 
   String
-  (query->statement [q _]
+  (^:no-check query->statement [q _]
     (SimpleStatement. q))
 
   clojure.lang.IPersistentMap
-  (query->statement [q _]
+  (^:no-check query->statement [q _]
     (query->statement (hayt-query-fn q) nil)))
 
+(T/ann ^:no-check set-statement-options!
+       [Statement ByteBuffer Any Boolean Any Any Any -> Any])
 (defn ^:private set-statement-options!
   [^Statement statement routing-key retry-policy tracing? consistency
    serial-consistency fetch-size]
@@ -237,6 +277,10 @@ pools/connections"
                                 (enum/consistency-level serial-consistency)))
   (when consistency
     (.setConsistencyLevel statement (enum/consistency-level consistency))))
+
+(T/ann ^:no-check execute
+       (Fn [Session Query ExecuteOptions -> Rows]
+           [Session Query -> Rows]))
 
 (defn execute
   "Executes a query against a session.
@@ -275,6 +319,9 @@ Values for consistency:
   ([^Session session query]
      (execute session query {})))
 
+(T/ann ^:no-check execute-async
+       (Fn [Session Query ExecuteOptions -> ResultChannel]
+           [Session Query -> ResultChannel]))
 (defn execute-async
   "Same as execute, but returns a promise and accepts :success
   and :error handlers via options, you can also pass :executor via the
@@ -307,9 +354,12 @@ Values for consistency:
                        (ex->ex-info ex {:query statement :values values}))))
           (or executor @default-executor))
          async-result)))
-    ([^Session session query]
-       (execute-async session query {})))
+  ([^Session session query]
+     (execute-async session query {})))
 
+(T/ann ^:no-check execute-chan
+       (Fn [Session Query ExecuteOptions -> ManyToManyChannel]
+           [Session Query -> ManyToManyChannel]))
 (defn execute-chan
   "Same as execute, but returns a clojure.core.async/chan that is
   wired to the underlying ResultSetFuture. This means this is usable
@@ -340,6 +390,7 @@ Values for consistency:
   ([^Session session query]
      (execute-chan session query {})))
 
+(T/ann ^:no-check lazy-query- [Session Query Any Rows ExecuteOptions -> Rows])
 (defn ^:private lazy-query-
   [session query pred coll opts]
   (lazy-cat coll
@@ -347,6 +398,8 @@ Values for consistency:
               (let [coll (execute session query opts)]
                 (lazy-query- session (pred query coll) pred coll opts)))))
 
+(T/ann ^:no-check lazy-query (Fn [Session Query ExecuteOptions -> Rows]
+                                 [Session Query -> Rows]))
 (defn lazy-query
   "Takes a session, a query (hayt, raw or prepared) and a query modifier fn (that
 receives the last query and last chunk and returns a new query or nil).

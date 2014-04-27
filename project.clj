@@ -9,7 +9,8 @@
                  [cc.qbits/hayt "2.0.0-beta4"]
                  [lamina "0.5.2"]
                  [com.datastax.cassandra/cassandra-driver-core "2.0.1"]
-                 [org.clojure/core.async "0.1.278.0-76b25b-alpha" ]]
+                 [org.clojure/core.async "0.1.278.0-76b25b-alpha" ]
+                 [org.clojure/core.typed "0.2.44"]]
   :profiles {:1.4  {:dependencies [[org.clojure/clojure "1.4.0"]]}
              :1.5  {:dependencies [[org.clojure/clojure "1.5.1"]]}
              :1.6  {:dependencies [[org.clojure/clojure "1.6.0"]]}
