@@ -1,7 +1,7 @@
 (ns qbits.alia.cluster-options
   (:require
    [qbits.alia.enum :as enum]
-   [clojure.core.typed :as T])
+   [clojure.core.typed :as T :refer [AnyInteger Seqable]])
   (:import
    (com.datastax.driver.core
     Cluster$Builder
@@ -18,7 +18,7 @@
    (clojure.lang Keyword)))
 
 (T/def-alias ClusterOptions
-  (HMap :mandatory {:contact-points (U Number (T/Seqable Number))}
+  (HMap :mandatory {:contact-points (U Number (Seqable Number))}
         :optional
         {:port AnyInteger
          :load-balancing-policy LoadBalancingPolicy

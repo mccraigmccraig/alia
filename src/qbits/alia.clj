@@ -3,12 +3,13 @@
    [qbits.knit :as knit]
    [qbits.alia.codec :as codec]
    [qbits.alia.utils :as utils]
-   [qbits.alia.enum :as enum]
+   [qbits.alia.enum :as enum :refer [TConsistencyLevel]]
    [qbits.hayt :as hayt]
    [lamina.core :as l]
    [clojure.core.memoize :as memo]
    [clojure.core.async :as async]
-   [clojure.core.typed :as T]
+   [clojure.core.typed :as T :refer [Seqable Option BlockingDeref ExInfo
+                                     AnyInteger]]
    [qbits.alia.cluster-options :as cluster-opt])
   (:import
    (com.datastax.driver.core
@@ -23,6 +24,10 @@
     Session
     SimpleStatement
     Statement)
+   (com.datastax.driver.core.policies
+    LoadBalancingPolicy
+    ReconnectionPolicy
+    RetryPolicy)
    (com.google.common.util.concurrent
     Futures
     FutureCallback)
@@ -34,15 +39,24 @@
     IFn
     Keyword
     IPersistentMap
-    IPersistentList
-    Sequential)))
+    IPersistentList)))
 
-(T/def-alias Rows (T/Seqable (IPersistentMap Any Any)))
+(T/def-alias Rows (Seqable (IPersistentMap Any Any)))
+(T/def-alias BindValues (Option Seqable))
 (T/def-alias HaytQuery (IPersistentMap Any Any))
-(T/def-alias ExecuteOptions (IPersistentMap Keyword Any))
+(T/def-alias ExecuteOptions
+  (Option (HMap :optional
+                {:values BindValues
+                 :consistency TConsistencyLevel
+                 :serial-consistency TConsistencyLevel
+                 :routing-key ByteBuffer
+                 :retry-policy RetryPolicy
+                 :tracing? Boolean
+                 :string-keys? Boolean
+                 :fetch-size AnyInteger})))
 (T/def-alias Query (U String HaytQuery Statement PreparedStatement BoundStatement))
 
-(T/ann ^:no-check default-executor (T/BlockingDeref ExecutorService))
+(T/ann ^:no-check default-executor (BlockingDeref ExecutorService))
 (def default-executor (delay (knit/executor :cached)))
 
 (T/ann ^:no-check hayt-query-fn [HaytQuery -> String])
@@ -187,9 +201,8 @@ pools/connections"
 
 
 (T/ann ^:no-check ex->ex-info
-       (Fn [Exception (IPersistentMap Any Any) String -> T/ExInfo]
-           [Exception (IPersistentMap Any Any) -> T/ExInfo]))
-
+       (Fn [Exception (IPersistentMap Any Any) String -> ExInfo]
+           [Exception (IPersistentMap Any Any) -> ExInfo]))
 (defn ^:private ex->ex-info
   ([^Exception ex data msg]
      (ex-info msg
@@ -219,7 +232,7 @@ pools/connections"
                              :query q}
                             "Query prepare failed"))))))
 
-(T/ann ^:no-check bind [PreparedStatement Any -> BoundStatement])
+(T/ann ^:no-check bind [PreparedStatement BindValues -> BoundStatement])
 (defn bind
   "Takes a statement and a collection of values and returns a
   com.datastax.driver.core.BoundStatement instance to be used with
@@ -235,7 +248,7 @@ pools/connections"
 
 (T/ann-protocol PStatement
        query->statement
-       [Query (T/Nilable Sequential) -> Any])
+       [Query BindValues -> Statement])
 
 (T/defprotocol> ^:no-doc PStatement
   (query->statement
@@ -258,7 +271,8 @@ pools/connections"
     (query->statement (hayt-query-fn q) nil)))
 
 (T/ann ^:no-check set-statement-options!
-       [Statement ByteBuffer Any Boolean Any Any Any -> Any])
+       [Statement ByteBuffer RetryPolicy Boolean TConsistencyLevel
+        TConsistencyLevel AnyInteger -> Any])
 (defn ^:private set-statement-options!
   [^Statement statement routing-key retry-policy tracing? consistency
    serial-consistency fetch-size]
