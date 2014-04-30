@@ -53,7 +53,10 @@
                  :retry-policy RetryPolicy
                  :tracing? Boolean
                  :string-keys? Boolean
-                 :fetch-size AnyInteger})))
+                 :fetch-size AnyInteger
+                 :executor ExecutorService
+                 :success (Fn [Rows -> Any])
+                 :error (Fn [Rows -> Any])})))
 (T/def-alias Query (U String HaytQuery Statement PreparedStatement BoundStatement))
 
 (T/ann ^:no-check default-executor (BlockingDeref ExecutorService))
@@ -62,7 +65,7 @@
 (T/ann ^:no-check hayt-query-fn [HaytQuery -> String])
 (def ^:no-doc hayt-query-fn (memo/lu hayt/->raw :lu/threshold 100))
 
-(T/ann ^:no-check set-hayt-query-fn! [IFn -> nil])
+(T/ann ^:no-check set-hayt-query-fn! [(Fn [HaytQuery -> String]) -> nil])
 (defn set-hayt-query-fn!
   "Sets root value of hayt-query-fn, allowing to control how hayt
     queries are executed , defaults to LU with a threshold of 100,
