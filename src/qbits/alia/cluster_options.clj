@@ -1,5 +1,7 @@
 (ns qbits.alia.cluster-options
-  (:require [qbits.alia.enum :as enum])
+  (:require
+   [qbits.alia.enum :as enum]
+   [clojure.core.typed :as T])
   (:import
    (com.datastax.driver.core
     Cluster$Builder
@@ -12,8 +14,33 @@
    (com.datastax.driver.core.policies
     LoadBalancingPolicy
     ReconnectionPolicy
-    RetryPolicy)))
+    RetryPolicy)
+   (clojure.lang Keyword)))
 
+(T/def-alias ClusterOptions
+  (HMap :mandatory {:contact-points (U Number (T/Seqable Number))}
+        :optional
+        {:port AnyInteger
+         :load-balancing-policy LoadBalancingPolicy
+         :reconnection-policy ReconnectionPolicy
+         :retry-policy RetryPolicy
+         :pooling-options (HMap
+                           :optional
+                           {:core-connections-per-host AnyInteger
+                            :max-connections-per-host AnyInteger
+                            :max-simultaneous-requests-per-connection AnyInteger
+                            :min-simultaneous-requests-per-connection AnyInteger})
+         :socket-options SocketOptions
+         :query-options QueryOptions
+         :credentials (HMap :mandatory {:user String :password String}
+                            :complete? true)
+         :ssl-options SSLOptions
+         :metrics? Boolean
+         :jmx-reporting? Boolean
+         :ssl? Boolean}))
+
+(T/ann ^:no-check set-cluster-option!
+       [Keyword Cluster$Builder Any -> Cluster$Builder])
 (defmulti set-cluster-option! (fn [k ^Cluster$Builder builder option] k))
 
 (defmethod set-cluster-option! :contact-points
@@ -132,6 +159,8 @@
           "Expects a com.datastax.driver.core.SSLOptions instance")
   (.withSSL builder ssl-options))
 
+(T/ann ^:no-check set-cluster-options!
+       [Cluster$Builder ClusterOptions -> Cluster$Builder])
 (defn set-cluster-options!
   ^Cluster$Builder
   [^Cluster$Builder builder options]

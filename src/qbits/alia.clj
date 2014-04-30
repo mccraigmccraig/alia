@@ -9,7 +9,7 @@
    [clojure.core.memoize :as memo]
    [clojure.core.async :as async]
    [clojure.core.typed :as T]
-   [qbits.alia.cluster-options :as copt])
+   [qbits.alia.cluster-options :as cluster-opt])
   (:import
    (com.datastax.driver.core
     BoundStatement
@@ -31,25 +31,24 @@
    (lamina.core.result ResultChannel)
    (clojure.core.async.impl.channels ManyToManyChannel)
    (clojure.lang
+    IFn
     Keyword
     IPersistentMap
+    IPersistentList
     Sequential)))
 
-(T/def-alias Rows Sequential)
+(T/def-alias Rows (T/Seqable (IPersistentMap Any Any)))
 (T/def-alias HaytQuery (IPersistentMap Any Any))
-(T/def-alias ClusterOptions (IPersistentMap Keyword Any))
 (T/def-alias ExecuteOptions (IPersistentMap Keyword Any))
 (T/def-alias Query (U String HaytQuery Statement PreparedStatement BoundStatement))
-
-;; (binding [*err* *out*] (T/cf (cluster 1)))
 
 (T/ann ^:no-check default-executor (T/BlockingDeref ExecutorService))
 (def default-executor (delay (knit/executor :cached)))
 
-(T/ann ^:no-check hayt-query-fn [HaytQuery -> java.lang.String])
+(T/ann ^:no-check hayt-query-fn [HaytQuery -> String])
 (def ^:no-doc hayt-query-fn (memo/lu hayt/->raw :lu/threshold 100))
 
-(T/ann ^:no-check set-hayt-query-fn! [clojure.lang.IFn -> nil])
+(T/ann ^:no-check set-hayt-query-fn! [IFn -> nil])
 (defn set-hayt-query-fn!
   "Sets root value of hayt-query-fn, allowing to control how hayt
     queries are executed , defaults to LU with a threshold of 100,
@@ -57,7 +56,7 @@
   [f]
   (alter-var-root #'hayt-query-fn (constantly f)))
 
-(T/ann ^:no-check cluster (Fn [ClusterOptions -> Cluster]
+(T/ann ^:no-check cluster (Fn [cluster-opt/ClusterOptions -> Cluster]
                               [-> Cluster]))
 (defn cluster
   "Takes an option map and returns a new
@@ -163,7 +162,7 @@ Values for consistency:
 "
   ([options]
      (-> (Cluster/builder)
-         (copt/set-cluster-options! (merge {:contact-points ["localhost"]}
+         (cluster-opt/set-cluster-options! (merge {:contact-points ["localhost"]}
                                            options))
          .build))
   ([] (cluster {})))
@@ -254,7 +253,7 @@ pools/connections"
   (^:no-check query->statement [q _]
     (SimpleStatement. q))
 
-  clojure.lang.IPersistentMap
+  IPersistentMap
   (^:no-check query->statement [q _]
     (query->statement (hayt-query-fn q) nil)))
 

@@ -27,7 +27,7 @@
 
 (T/def-alias TWriteType (U ':cas ':batch-log ':counter ':unlogged-batch ':batch
                            ':simple))
-(T/ann ^:no-check write-type [TCompression -> WriteType])
+(T/ann ^:no-check write-type [TWriteType -> WriteType])
 (def write-type (enum-values->map (WriteType/values)))
 
 (T/def-alias TConsistencyLevel (U ':each-quorum ':one ':local-quorum ':quorum
