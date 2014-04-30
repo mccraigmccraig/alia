@@ -54,7 +54,7 @@
                  :fetch-size AnyInteger
                  :executor ExecutorService
                  :success (Fn [Rows -> Any])
-                 :error (Fn [Rows -> Any])})))
+                 :error (Fn [Exception -> Any])})))
 (T/def-alias Query (U String HaytQuery Statement PreparedStatement BoundStatement))
 
 (T/ann ^:no-check default-executor (BlockingDeref ExecutorService))
