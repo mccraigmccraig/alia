@@ -8,7 +8,7 @@
     HostDistance
     ProtocolOptions$Compression
     WriteType)
-   (clojure.lang IPersistentMap Keyword IFn)))
+   (clojure.lang IPersistentMap Keyword)))
 
 (T/def-alias EnumMap (U [Keyword -> Any] (IPersistentMap Keyword Any)))
 

@@ -36,10 +36,8 @@
    (lamina.core.result ResultChannel)
    (clojure.core.async.impl.channels ManyToManyChannel)
    (clojure.lang
-    IFn
     Keyword
-    IPersistentMap
-    IPersistentList)))
+    IPersistentMap)))
 
 (T/def-alias Rows (Seqable (IPersistentMap Any Any)))
 (T/def-alias BindValues (Option Seqable))
