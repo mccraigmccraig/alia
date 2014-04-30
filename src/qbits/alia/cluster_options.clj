@@ -18,7 +18,7 @@
    (clojure.lang Keyword)))
 
 (T/def-alias ClusterOptions
-  (HMap :mandatory {:contact-points (U Number (Seqable Number))}
+  (HMap :mandatory {:contact-points (U String (Seqable String))}
         :optional
         {:port AnyInteger
          :load-balancing-policy LoadBalancingPolicy
