@@ -2,7 +2,6 @@
   (:require
    [qbits.knit :as knit]
    [qbits.alia.codec :as codec]
-   [qbits.alia.utils :as utils]
    [qbits.alia.enum :as enum :refer [TConsistencyLevel]]
    [qbits.hayt :as hayt]
    [lamina.core :as l]
