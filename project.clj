@@ -1,5 +1,5 @@
 (def driver-version "2.1.7.1")
-(defproject cc.qbits/alia "2.7.2"
+(defproject mccraigmccraig/alia "2.7.3-SNAPSHOT"
   :description "Cassandra CQL3 client for Clojure - datastax/java-driver wrapper"
   :url "https://github.com/mpenet/alia"
   :license {:name "Eclipse Public License"
@@ -26,7 +26,7 @@
                                    [com.taoensso/nippy "2.9.0"]
                                    [cc.qbits/tardis "1.0.0"]
                                    [codox "0.8.10"]
-                                   [manifold "0.1.0-beta3"]
+                                   [manifold "0.1.1-alpha3"]
                                    [org.slf4j/slf4j-log4j12 "1.7.3"]]}}
   :jar-exclusions [#"log4j.properties"]
   :codox {:src-dir-uri "https://github.com/mpenet/alia/blob/master/"
